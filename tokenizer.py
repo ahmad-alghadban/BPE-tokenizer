@@ -1,58 +1,47 @@
 import json
+from itertools import islice
+
+import config
 from utils.text_preprocessing import load_arabic_letters, clean_text
 from BPE_tokenizer.BPE_tokenizer import BPE_tokenizer
 
+
 def main():
-    arabic_letters = load_arabic_letters("langauge-related-utils/arabic.json")
+    arabic_letters = load_arabic_letters(config.ARABIC_JSON)
     bpe_tokenizer = BPE_tokenizer()
 
-    total_first = 0
-    total_second = 0
-    i = 0
+    total_words = 0
+    total_tokens = 0
+    report_every = max(1, config.EVAL_MAX_LINES // 100)
 
     try:
-        with open("datasets/wiki-arabic-v2-dataset/arabic-wiki-simple-dataset/wiki-v2.jsonl", "r", encoding="utf-8") as file:
-            while i < 10000:
-                if i % (10000 // 100) == 0:
-                    print(f"{i // (10000 // 100)}% is done")
+        with open(config.EVAL_INPUT, "r", encoding="utf-8") as file:
+            for i, line in enumerate(islice(file, config.EVAL_MAX_LINES)):
+                if i % report_every == 0:
+                    print(f"{i // report_every}% is done")
 
                 try:
-                    line = file.readline()
-                    if not line:
-                        break  # End of file
-                    
-                    # print("line", line)
+                    text = clean_text(json.loads(line)["text"], arabic_letters)
+                    tokens = bpe_tokenizer.tokenize(text)
+                    assert bpe_tokenizer.detokenize(tokens) == text
 
-                    j = json.loads(line)
-                    s = j["text"]
-                    s = clean_text(s, arabic_letters)  # Optional in testing phase
-                    
-                    # print("s", "'"+s+"'")
-
-                    words = s.count(' ') + 1
-                    total_first += words
-
-                    tokenized = bpe_tokenizer.tokenize(s)
-                    total_second += len(tokenized)
-
-                    de_tokenized = bpe_tokenizer.detokenize(tokenized)
-                    # print("Got here!", "'"+de_tokenized+"'")
-                    assert s == de_tokenized
-
-                    i += 1
-
+                    total_words += len(text.split())
+                    total_tokens += len(tokens)
                 except json.JSONDecodeError as e:
                     print(f"Error parsing JSON: {e}")
                     return
                 except Exception as e:
                     print(f"Unexpected error at line {i}: {e}")
                     return
-
     except FileNotFoundError:
         print("Failed to open file.")
         return
 
-    print(f"{total_second / total_first:.6f}")
+    if total_words:
+        print(f"{total_tokens / total_words:.6f}")
+    else:
+        print("No words to evaluate.")
+
 
 if __name__ == "__main__":
     main()

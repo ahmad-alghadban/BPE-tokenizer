@@ -1,4 +1,6 @@
 class Node:
+    __slots__ = ("data", "prev", "next")
+
     def __init__(self, data):
         self.data = data
         self.prev = None
@@ -6,6 +8,8 @@ class Node:
 
 
 class LinkedList:
+    __slots__ = ("head", "tail", "sz")
+
     def __init__(self):
         self.head = None
         self.tail = None
@@ -14,8 +18,21 @@ class LinkedList:
     def __len__(self):
         return self.sz
 
+    def __iter__(self):
+        cur = self.head
+        while cur:
+            yield cur.data
+            cur = cur.next
+
+    def __repr__(self):
+        return f"LinkedList({list(self)!r})"
+
     def empty(self):
         return self.sz == 0
+
+    def _raise_if_empty(self):
+        if not self.head:
+            raise IndexError("List is empty")
 
     # --- Modifiers ---
     def push_back(self, value):
@@ -41,8 +58,7 @@ class LinkedList:
         return node
 
     def pop_back(self):
-        if not self.tail:
-            raise IndexError("List is empty")
+        self._raise_if_empty()
         node = self.tail
         self.tail = node.prev
         if self.tail:
@@ -53,8 +69,7 @@ class LinkedList:
         return node
 
     def pop_front(self):
-        if not self.head:
-            raise IndexError("List is empty")
+        self._raise_if_empty()
         node = self.head
         self.head = node.next
         if self.head:
@@ -71,8 +86,7 @@ class LinkedList:
         If node is None -> insert at end.
         """
         if node is None:
-            self.push_back(value)
-            return self.tail
+            return self.push_back(value)
 
         new_node = Node(value)
         new_node.next = node
@@ -102,33 +116,30 @@ class LinkedList:
         else:
             self.tail = node.prev
 
+        # Detach the removed node so any stale reference fails fast
+        # instead of silently traversing back into the list.
+        node.prev = node.next = None
+
         self.sz -= 1
         return node
 
     # --- Access ---
     def front(self):
-        if not self.head:
-            raise IndexError("List is empty")
+        self._raise_if_empty()
         return self.head.data
 
     def back(self):
-        if not self.tail:
-            raise IndexError("List is empty")
+        self._raise_if_empty()
         return self.tail.data
 
     def back_iter(self):
-        if not self.tail:
-            raise IndexError("List is empty")
+        self._raise_if_empty()
         return self.tail
-    
+
     def begin(self):
+        self._raise_if_empty()
         return self.head
 
     # --- Export ---
     def export_as_list(self):
-        result = []
-        cur = self.head
-        while cur:
-            result.append(cur.data)
-            cur = cur.next
-        return result
+        return list(self)

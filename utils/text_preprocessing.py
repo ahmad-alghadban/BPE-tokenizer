@@ -1,39 +1,26 @@
 import json
-import time
-from typing import Set, List
+import re
 
-def load_arabic_letters(path: str) -> Set[str]:
-    letters = set()
-    try:
-        with open(path, 'r', encoding='utf-8') as file:
-            content = json.load(file)
-    except FileNotFoundError:
-        print(f"Error: Cannot open file {path}")
-        return letters
-    except json.JSONDecodeError as e:
-        print(f"JSON parse error: {e}")
-        return letters
+def load_arabic_letters(path: str) -> set[str]:
+    with open(path, 'r', encoding='utf-8') as file:
+        content = json.load(file)
 
-    if "letters" in content and isinstance(content["letters"], list):
-        for letter in content["letters"]:
-            if isinstance(letter, str):
-                letters.add(letter)
-    else:
-        print("JSON does not contain 'letters' array.")
+    if "letters" not in content or not isinstance(content["letters"], list):
+        raise ValueError(f"{path} does not contain a 'letters' array.")
+
+    letters = {letter for letter in content["letters"] if isinstance(letter, str)}
+    if not letters:
+        raise ValueError(f"{path} contains no valid letters.")
     return letters
 
-def delete_non_arabic_letters(text: str, arabic_tokens: Set[str] = None) -> str:
-    if arabic_tokens is None or not arabic_tokens:
-        arabic_tokens = load_arabic_letters("langauge-related-utils/arabic.json")
+def delete_non_arabic_letters(text: str, arabic_tokens: set[str]) -> str:
+    if not arabic_tokens:
+        raise ValueError("arabic_tokens must be a non-empty set; load it once with load_arabic_letters().")
 
-    result = ""
-    for ch in text:
-        if ch in arabic_tokens or ch in {" ", "\n"}:
-            result += ch
-    
-    return result
+    allowed = arabic_tokens | {" ", "\n"}
+    return "".join(ch for ch in text if ch in allowed)
 
-def prefix_function(s: str) -> List[int]:
+def prefix_function(s: str) -> list[int]:
     n = len(s)
     pi = [0] * n
     for i in range(1, n):
@@ -69,37 +56,16 @@ def delete_pattern_from_text(text: str, pattern: str) -> str:
     return ''.join(result)
 
 def replace_consecutive_whitespaces_with_single_space(text: str) -> str:
-    result = []
-    for c in text:
-        if not c.isspace():
-            result.append(c)
-        elif result and result[-1] != ' ':
-            result.append(' ')
-    if result[-1] == ' ': result.pop()
-    return ''.join(result)
+    return re.sub(r"\s+", " ", text).strip()
 
-def clean_text(input_text: str, arabic_tokens: Set[str] = None) -> str:
-    try:
-        print_debug = False
+def clean_text(input_text: str, arabic_tokens: set[str] = None) -> str:
+    # Remove markers (commented out in C++ version)
+    # input_text = delete_pattern_from_text(input_text, "###Human:")
+    # input_text = delete_pattern_from_text(input_text, "###Assistant:")
 
-        # Remove markers (commented out in C++ version)
-        # input_text = delete_pattern_from_text(input_text, "###Human:")
-        # input_text = delete_pattern_from_text(input_text, "###Assistant:")
+    text = delete_non_arabic_letters(input_text, arabic_tokens)
+    text = replace_consecutive_whitespaces_with_single_space(text)
+    return text
 
-        start = time.time()
-        text = delete_non_arabic_letters(input_text, arabic_tokens)
-        if print_debug:
-            print(f"Execution time for letters deletion: {int((time.time() - start) * 1000)} ms")
-
-        start = time.time()
-        text = replace_consecutive_whitespaces_with_single_space(text)
-        if print_debug:
-            print(f"Execution time for whitespace cleanup: {int((time.time() - start) * 1000)} ms")
-
-        return text
-    except Exception as e:
-        print(f"The input: {input_text}\nError: {e}")
-        return "failed"
-
-def clean_text_batch(dataset: List[str], arabic_tokens: Set[str]) -> List[str]:
+def clean_text_batch(dataset: list[str], arabic_tokens: set[str]) -> list[str]:
     return [clean_text(text, arabic_tokens) for text in dataset]
