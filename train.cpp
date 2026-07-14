@@ -6,32 +6,18 @@
 #include <set>
 #include "nlohmann/json.hpp" // relative to include root
 #include "utils/text_preprocessing.hpp"
+#include "utils/config.hpp"
+#include "utils/utils.hpp"
 #include "BPE_tokenizer/BPE_tokenizer.hpp"
 #include <chrono>
-#include <locale>
-#include <codecvt>
 
 using json = nlohmann::json;
 using namespace std;
 
-string int_to_string(int x)
-{
-    if (x == 0)
-        return "0";
-    string result = "";
-    while (x)
-    {
-        result += '0' + x % 10;
-        x /= 10;
-    }
-    reverse(result.begin(), result.end());
-    return result;
-}
-
 int main()
 {
 
-    unordered_set<string> arabic_letters = load_arabic_letters("langauge-related-utils/arabic.json");
+    unordered_set<string> arabic_letters = load_arabic_letters(get_config().arabic_letters_path);
     if (arabic_letters.empty())
     {
         cerr << "Arabic letter set empty. Exiting.\n";
@@ -46,7 +32,7 @@ int main()
     long long number_of_words = 0;
     unordered_map<string, int> uni;
 
-    string file_name = "datasets/arabic_1b_words/arabic_1b_words.txt";
+    string file_name = get_config().train_dataset_path;
     ifstream file(file_name);
 
     if (!file.is_open())
@@ -55,14 +41,22 @@ int main()
         return 1;
     }
 
+    // File size for dataset-independent progress reporting (measured by bytes read).
+    file.seekg(0, ios::end);
+    long long file_size = file.tellg();
+    file.seekg(0, ios::beg);
+
     string line;
-    int line_number = 0;
+    long long line_number = 0;
 
     while (getline(file, line))
     {
 
-        if(line_number%(61000000/100) == 0){
-            cout << line_number/(61000000/100) << "% is done" << endl;
+        if (line_number % 1000000 == 0 && file_size > 0)
+        {
+            long long bytes_read = file.tellg();
+            if (bytes_read >= 0)
+                cout << (100 * bytes_read / file_size) << "% is done" << endl;
         }
 
         try

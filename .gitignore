@@ -36,6 +36,8 @@
 *.exe
 *.out
 *.app
+/train
+/tokenize
 
 # debug information files
 *.dwo
@@ -45,3 +47,8 @@ datasets/*
 
 #testing files
 temp/*
+
+# Editor config
+.vscode/
+
+/BPE_tokenizer/progress

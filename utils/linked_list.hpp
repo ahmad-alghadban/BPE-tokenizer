@@ -1,39 +1,45 @@
+#ifndef LINKED_LIST_HPP
+#define LINKED_LIST_HPP
+
 #include <cstddef>
 #include <stdexcept>
+#include <vector>
+#include <utility>
 
 // A minimal doubly linked list template
 template <typename T>
 class linked_list
 {
 private:
-    
-
-public:
-    // --- Iterator ---
-
     struct Node
     {
         T data;
         Node *prev;
         Node *next;
-        Node(const T &val) : data(val), prev(nullptr), next(nullptr) {}
+        bool deleted; // marked true by erase(); node is kept alive until the list dies
+        Node(const T &val) : data(val), prev(nullptr), next(nullptr), deleted(false) {}
     };
 
     Node *head;
     Node *tail;
     std::size_t sz;
+    // Erased nodes are unlinked but kept alive (stale iterators elsewhere may still
+    // read their `deleted` flag), then freed together when the list is destroyed.
+    std::vector<Node *> graveyard;
 
+public:
+    // --- Iterator ---
     class iterator
     {
     private:
-    public:
         Node *current;
-        // iterator(Node *ptr = nullptr) : current(ptr) {}
-        iterator(Node *node) : current(node){}
 
-        Node* getCurrent(){
-            return current;
-        }
+    public:
+        iterator(Node *node) : current(node) {}
+
+        // True if this node was removed via erase() but is still retained (see graveyard).
+        bool is_deleted() const { return current->deleted; }
+
         T &operator*() { return current->data; }
         T *operator->() { return &(current->data); }
 
@@ -41,8 +47,8 @@ public:
         { // pre-increment
             if (current)
                 current = current->next;
-            else 
-                std::out_of_range("Iterator is not valid");
+            else
+                throw std::out_of_range("Iterator is not valid");
             return *this;
         }
         iterator operator++(int)
@@ -55,13 +61,13 @@ public:
         iterator &operator--()
         {
             if (!current)
-                std::out_of_range("Iterator is not valid");
+                throw std::out_of_range("Iterator is not valid");
             else
                 current = current->prev;
             return *this;
         }
         iterator operator--(int)
-        { // post-increment
+        { // post-decrement
             iterator temp = *this;
             --(*this);
             return temp;
@@ -78,6 +84,13 @@ public:
     // --- Constructors & destructor ---
     linked_list();
     linked_list(const linked_list &other);
+    // noexcept move ctor: lets std::vector relocate without copying, keeping node
+    // addresses stable so stored Node* iterators stay valid across reallocation.
+    linked_list(linked_list &&other) noexcept;
+    // Unified copy/move assignment via copy-and-swap: `other` is built by copy or
+    // move, then swapped in; the old resources leave with `other`'s destructor.
+    linked_list &operator=(linked_list other);
+    void swap(linked_list &other) noexcept;
     ~linked_list();
 
     // --- Modifiers ---
@@ -103,7 +116,7 @@ public:
     iterator end() { return iterator(nullptr); }
 
     // --- usage ---
-    vector<T> export_as_vector();
+    std::vector<T> export_as_vector();
 };
 
 // --- Constructors & destructor ---
@@ -127,12 +140,42 @@ linked_list<T>::linked_list(const linked_list &other)
 }
 
 template <typename T>
+linked_list<T>::linked_list(linked_list &&other) noexcept
+    : head(other.head), tail(other.tail), sz(other.sz), graveyard(std::move(other.graveyard))
+{
+    // Steal the nodes; leave `other` empty so its destructor frees nothing.
+    other.head = nullptr;
+    other.tail = nullptr;
+    other.sz = 0;
+}
+
+template <typename T>
+void linked_list<T>::swap(linked_list &other) noexcept
+{
+    std::swap(head, other.head);
+    std::swap(tail, other.tail);
+    std::swap(sz, other.sz);
+    graveyard.swap(other.graveyard);
+}
+
+template <typename T>
+linked_list<T> &linked_list<T>::operator=(linked_list other)
+{
+    swap(other);
+    return *this;
+}
+
+template <typename T>
 linked_list<T>::~linked_list()
 {
     while (!empty())
     {
         pop_back();
     }
+    // Reclaim the erased-but-retained nodes.
+    for (Node *dead : graveyard)
+        delete dead;
+    graveyard.clear();
 }
 
 // --- Modifiers ---
@@ -259,7 +302,8 @@ typename linked_list<T>::iterator linked_list<T>::erase(iterator pos)
     }
 
     sz--;
-    // delete current;
+    current->deleted = true;
+    graveyard.push_back(current); // freed later in the destructor
 
     return iterator(nextNode);
 }
@@ -303,12 +347,15 @@ bool linked_list<T>::empty() const
 
 // --- usage ---
 template <typename T>
-vector<T> linked_list<T>::export_as_vector()
+std::vector<T> linked_list<T>::export_as_vector()
 {
-    vector<T> result;
+    std::vector<T> result;
     result.reserve(sz);
-    for(auto itr = this->begin(); itr != this->end(); itr++){
+    for (auto itr = this->begin(); itr != this->end(); itr++)
+    {
         result.push_back(*itr);
     }
     return result;
 }
+
+#endif // LINKED_LIST_HPP

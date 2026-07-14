@@ -6,7 +6,9 @@
 #include <string>
 #include <nlohmann/json.hpp>
 #include "../utils/text_preprocessing.hpp"
-#include "../utils/utils.cpp"
+#include "../utils/utils.hpp"
+#include "../utils/config.hpp"
+#include "../utils/errors.hpp"
 #include <set>
 #include "BPE_tokenizer.hpp"
 
@@ -52,28 +54,28 @@ void BPE_tokenizer::add_new_token(string first_token, string seocnd_token)
 
 void BPE_tokenizer::save_tokens()
 {
-    ofstream out_file("BPE_tokenizer/splitted_tokens_ordered.txt");
+    ofstream out_file(get_config().splitted_tokens_ordered_path);
     if (!out_file.is_open())
     {
         cerr << "Could not open output file!" << endl;
         return;
     }
 
-    for (auto [first_tokem, second_token] : get_splitted_tokens_added_in_order())
+    for (const auto &[first_tokem, second_token] : get_splitted_tokens_added_in_order())
     {
         out_file << first_tokem << " " << second_token << endl;
     }
 
     out_file.close();
 
-    ofstream out_file1("BPE_tokenizer/tokens_ordered.txt");
+    ofstream out_file1(get_config().tokens_ordered_path);
     if (!out_file1.is_open())
     {
         cerr << "Could not open output file!" << endl;
         return;
     }
 
-    for (auto token : get_tokens_added_in_order())
+    for (const auto &token : get_tokens_added_in_order())
     {
         out_file1 << token << endl;
     }
@@ -84,10 +86,8 @@ void BPE_tokenizer::save_tokens()
 void BPE_tokenizer::load_tokens()
 {
     if (has_tokens())
-    {
-        assert(true);
-    }
-    ifstream in_file("BPE_tokenizer/splitted_tokens_ordered.txt");
+        return; // tokens already loaded; don't append them a second time
+    ifstream in_file(get_config().splitted_tokens_ordered_path);
     if (!in_file.is_open())
     {
         cerr << "Could not open input file!" << endl;
@@ -98,7 +98,9 @@ void BPE_tokenizer::load_tokens()
     while (getline(in_file, token))
     {
         vector<string> token_splitted = split_by_space(token);
-        assert((int)token_splitted.size() == 2);
+        if ((int)token_splitted.size() != 2)
+            throw ParseError("load_tokens: expected 2 space-separated tokens per line, got " +
+                             std::to_string(token_splitted.size()) + " in line: \"" + token + "\"");
         add_new_token(token_splitted[0], token_splitted[1]);
     }
 
@@ -115,7 +117,7 @@ void BPE_tokenizer::init_data_structures(const unordered_map<string, int> &clean
 
     sentences_in_list.reserve(maximum_number_of_words);
 
-    for (auto [line, freqs] : cleaned_dataset)
+    for (const auto &[line, freqs] : cleaned_dataset)
     {
         // list<string> temp_list;
         string previous = "-1";
@@ -211,9 +213,9 @@ void BPE_tokenizer::sorting_data_structures_method(const int &maximum_number_of_
     freq_tokens_map.reserve(maximum_number_of_words);
     set<pair<int, pair<string, string>>> freq_tokens_sorted; // sorted by frequency ascending
 
-    for (auto [first_token, second_token_map] : tokens_pair_to_nodes_mapper)
+    for (const auto &[first_token, second_token_map] : tokens_pair_to_nodes_mapper)
     {
-        for (auto [second_token, two_tokens_vector] : second_token_map)
+        for (const auto &[second_token, two_tokens_vector] : second_token_map)
         {
             pair<string, string> pair_token(first_token, second_token);
             int freq = temp_tokens_pair_freq[first_token][second_token];
@@ -221,8 +223,6 @@ void BPE_tokenizer::sorting_data_structures_method(const int &maximum_number_of_
             freq_tokens_sorted.insert({freq, pair_token});
         }
     }
-
-    unordered_set<linked_list<string>::iterator, IteratorHash, IteratorEqual> deleted_nodes;
 
     auto update_data_structures = [&](const linked_list<string>::iterator &first_node, const linked_list<string>::iterator &second_node, const int update_value)
     {
@@ -270,7 +270,7 @@ void BPE_tokenizer::sorting_data_structures_method(const int &maximum_number_of_
             int idx = p.second.first;
             int freqs = p.second.second;
 
-            if (deleted_nodes.count(node))
+            if (node.is_deleted())
             {
                 num_deleted_nodes++;
                 continue;
@@ -278,7 +278,7 @@ void BPE_tokenizer::sorting_data_structures_method(const int &maximum_number_of_
 
             auto next_node = node;
             ++next_node;
-            if (next_node == sentences_in_list[idx].end() || deleted_nodes.count(next_node))
+            if (next_node == sentences_in_list[idx].end() || next_node.is_deleted())
             {
                 assert(false);
                 continue;
@@ -312,10 +312,8 @@ void BPE_tokenizer::sorting_data_structures_method(const int &maximum_number_of_
             string merged = first_token + second_token;
             auto next_next_node = next_node;
             next_next_node++;
-            deleted_nodes.insert(node);
-            deleted_nodes.insert(next_node);
-            sentences_in_list[idx].erase(node);
-            sentences_in_list[idx].erase(next_node);
+            sentences_in_list[idx].erase(node);     // marks node->deleted
+            sentences_in_list[idx].erase(next_node); // marks next_node->deleted
             node = sentences_in_list[idx].insert(next_next_node, merged);
 
             if (node != sentences_in_list[idx].begin())
@@ -346,7 +344,7 @@ void BPE_tokenizer::train(const unordered_map<string, int> &cleaned_dataset, int
 
     // vector<string> cleaned_dataset = clean_text(dataset);
 
-    this->init_set = this->load_init_tokens_set("langauge-related-utils/arabic.json");
+    this->init_set = this->load_init_tokens_set(get_config().arabic_letters_path);
     tokens = this->init_set;
 
     init_data_structures(cleaned_dataset, maximum_number_of_words);
@@ -357,43 +355,8 @@ void BPE_tokenizer::train(const unordered_map<string, int> &cleaned_dataset, int
 
 unordered_set<string> BPE_tokenizer::load_init_tokens_set(const string &path)
 {
-    unordered_set<string> letters;
-
-    ifstream file(path);
-    if (!file.is_open())
-    {
-        cerr << "Error: Cannot open file " << path << endl;
-        return letters;
-    }
-
-    json content;
-    try
-    {
-        file >> content;
-    }
-    catch (const json::parse_error &e)
-    {
-        cerr << "JSON parse error: " << e.what() << endl;
-        return letters;
-    }
-
-    if (content.contains("letters") && content["letters"].is_array())
-    {
-        for (const auto &letter_json : content["letters"])
-        {
-            if (letter_json.is_string())
-            {
-                string letter = letter_json.get<string>();
-                letters.insert(letter); // store as UTF-8 string
-            }
-        }
-    }
-    else
-    {
-        cerr << "JSON does not contain 'letters' array." << endl;
-    }
-
-    return letters;
+    // Delegates to the shared loader so the JSON-parsing logic lives in one place.
+    return load_arabic_letters(path);
 }
 
 vector<string> BPE_tokenizer::tokenize(string sentences, int maximum_number_of_words)
@@ -447,23 +410,21 @@ vector<string> BPE_tokenizer::tokenize(string sentences, int maximum_number_of_w
     if (sentences_in_list.back().empty())
         sentences_in_list.pop_back();
 
-    unordered_set<linked_list<string>::iterator, IteratorHash, IteratorEqual> deleted_nodes;
-
-    for(auto [first_token, second_token] : ordered_added_tokens_splitted){
+    for (const auto &[first_token, second_token] : ordered_added_tokens_splitted){
         auto &pair_nodes = tokens_pair_to_nodes_mapper[first_token][second_token];
         for (auto &p : pair_nodes)
         {
             auto node = p.first;
             int idx = p.second;
 
-            if (deleted_nodes.count(node))
+            if (node.is_deleted())
             {
                 continue;
             }
 
             auto next_node = node;
             ++next_node;
-            if (next_node == sentences_in_list[idx].end() || deleted_nodes.count(next_node))
+            if (next_node == sentences_in_list[idx].end() || next_node.is_deleted())
             {
                 continue;
             }
@@ -478,10 +439,8 @@ vector<string> BPE_tokenizer::tokenize(string sentences, int maximum_number_of_w
             string merged = first_token + second_token;
             auto next_next_node = next_node;
             next_next_node++;
-            deleted_nodes.insert(node);
-            deleted_nodes.insert(next_node);
-            sentences_in_list[idx].erase(node);
-            sentences_in_list[idx].erase(next_node);
+            sentences_in_list[idx].erase(node);     // marks node->deleted
+            sentences_in_list[idx].erase(next_node); // marks next_node->deleted
             node = sentences_in_list[idx].insert(next_next_node, merged);
             estimated_number_of_resulting_tokens--;
 
@@ -503,12 +462,14 @@ vector<string> BPE_tokenizer::tokenize(string sentences, int maximum_number_of_w
 
     vector<string> result;
     result.reserve(estimated_number_of_resulting_tokens);
-    for(auto word : sentences_in_list){
-        vector<string> cur = word.export_as_vector();
-        for(auto token : cur){
+    for (size_t w = 0; w < sentences_in_list.size(); w++)
+    {
+        if (w > 0)
+            result.push_back(" "); // single separator between words, not after the last
+        for (const auto &token : sentences_in_list[w].export_as_vector())
+        {
             result.push_back(token);
         }
-        result.push_back(" ");
     }
 
     return result;
@@ -518,7 +479,7 @@ vector<string> BPE_tokenizer::tokenize(string sentences, int maximum_number_of_w
 string BPE_tokenizer::detokenize(vector<string> sentences)
 {
     string result = "";
-    for(string token : sentences){
+    for(const string &token : sentences){
         result += token;
     }
 
