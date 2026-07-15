@@ -1,6 +1,8 @@
 # --- Project-wide ignores ---
 # Language-specific ignores live in their own subfolder .gitignore
 # (python/.gitignore, cpp/.gitignore). This file is for repo-wide things.
+# Language-specific build artifacts live in their own subfolder .gitignore
+# (e.g. cpp/.gitignore). This file is for things that apply to the whole repo.
 
 # Datasets (large; not versioned)
 datasets/

@@ -1,0 +1,38 @@
+# --- C++ build artifacts (relative to this cpp/ directory) ---
+
+# Auto-generated dependency files (from the Makefile's -MMD -MP)
+*.d
+
+# Compiled object files
+*.o
+*.obj
+*.slo
+*.lo
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Linker / debugger files
+*.ilk
+*.pdb
+*.dwo
+
+# Compiled libraries
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.la
+*.lai
+
+# Executables
+*.exe
+*.out
+*.app
+/train
+/tokenize
+
+# Duplicate backup of the trained token files
+/BPE_tokenizer/progress/
