@@ -1,54 +1,16 @@
-# Prerequisites
-*.d
+# --- Project-wide ignores ---
+# Language-specific build artifacts live in their own subfolder .gitignore
+# (e.g. cpp/.gitignore). This file is for things that apply to the whole repo.
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Datasets (large; not versioned)
+datasets/
 
-# Precompiled Headers
-*.gch
-*.pch
+# Scratch / temporary working files
+temp/
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-/train
-/tokenize
-
-# debug information files
-*.dwo
-
-#datasets
-datasets/*
-
-#testing files
-temp/*
-
-# Editor config
+# Editor / IDE config (machine-specific)
 .vscode/
 
-/BPE_tokenizer/progress
+# OS files
+.DS_Store
+Thumbs.db
