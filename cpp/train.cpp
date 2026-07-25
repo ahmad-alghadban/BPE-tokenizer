@@ -37,7 +37,7 @@ int main()
 
     if (!file.is_open())
     {
-        cout << "❌ Could not open file: " << file_name << endl;
+        cout << "Could not open file: " << file_name << endl;
         return 1;
     }
 
@@ -48,15 +48,23 @@ int main()
 
     string line;
     long long line_number = 0;
+    long long last_percent = -1; // last progress percent printed, so we print each once
 
     while (getline(file, line))
     {
 
-        if (line_number % 1000000 == 0 && file_size > 0)
+        if (file_size > 0)
         {
             long long bytes_read = file.tellg();
             if (bytes_read >= 0)
-                cout << (100 * bytes_read / file_size) << "% is done" << endl;
+            {
+                long long percent = 100 * bytes_read / file_size;
+                if (percent != last_percent) // crossed into a new percent
+                {
+                    cout << percent << "% is done" << endl;
+                    last_percent = percent;
+                }
+            }
         }
 
         try
@@ -118,7 +126,7 @@ int main()
 
     start = high_resolution_clock::now();
     BPE_tokenizer bpe_tokenizer;
-    bpe_tokenizer.train(uni, 1<<16, number_of_words + 100);
+    bpe_tokenizer.train(uni, 1<<16, 2 * (int)uni.size() + 100);
 
     end = high_resolution_clock::now();
 

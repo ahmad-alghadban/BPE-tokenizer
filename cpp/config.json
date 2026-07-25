@@ -1,7 +1,7 @@
 {
     "arabic_letters_path": "langauge-related-utils/arabic.json",
-    "train_dataset_path": "datasets/arabic_1b_words/arabic_1b_words.txt",
-    "tokenize_dataset_path": "datasets/wiki-arabic-v2-dataset/arabic-wiki-simple-dataset/wiki-v2.jsonl",
+    "train_dataset_path": "../datasets/arabic_1b_words/arabic_1b_words.txt",
+    "tokenize_dataset_path": "../datasets/wiki-arabic-v2-dataset/arabic-wiki-simple-dataset/wiki-v2.jsonl",
     "splitted_tokens_ordered_path": "BPE_tokenizer/splitted_tokens_ordered.txt",
     "tokens_ordered_path": "BPE_tokenizer/tokens_ordered.txt"
 }
